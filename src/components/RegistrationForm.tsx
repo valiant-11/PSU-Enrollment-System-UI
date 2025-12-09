@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../supabase";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -47,8 +47,8 @@ export function RegistrationForm({ onRegister }: RegistrationFormProps) {
           student_number: studentNumber,
           corp_email: corpEmail,
           full_name: fullName,
-          birthday: birthday,
-          course: course,
+          birthdate: birthday,
+          course_id: course,
           year_level: yearLevel,
         },
       ])
