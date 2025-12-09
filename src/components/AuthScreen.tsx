@@ -10,11 +10,13 @@ import { RegistrationForm } from "./RegistrationForm";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "./ui/input-otp";
 import { supabase } from "../supabase";
 
-interface AuthPageProps {
+interface AuthScreenProps {
   onLogin: (student: any) => void;
+  onRegister: (student: any) => void;
+  students: any[];
 }
 
-export function AuthPage({ onLogin }: AuthPageProps) {
+export function AuthScreen({ onLogin, onRegister, students }: AuthScreenProps) {
   const [loginStep, setLoginStep] = useState<"email" | "otp">("email");
   const [loginEmail, setLoginEmail] = useState("");
 
@@ -209,7 +211,7 @@ export function AuthPage({ onLogin }: AuthPageProps) {
 
             {/* REGISTER TAB */}
             <TabsContent value="register">
-              <RegistrationForm onRegister={(student) => onLogin(student)} />
+              <RegistrationForm onRegister={(student) => onRegister(student)} />
             </TabsContent>
           </Tabs>
         </Card>
