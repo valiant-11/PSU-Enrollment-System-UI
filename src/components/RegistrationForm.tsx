@@ -15,9 +15,13 @@ export function RegistrationForm({ onRegister }: RegistrationFormProps) {
 
   const [studentNumber, setStudentNumber] = useState("");
   const [fullName, setFullName] = useState("");
-  const [birthday, setBirthday] = useState("");
+  const [birthdate, setBirthdate] = useState("");
   const [course, setCourse] = useState("");
   const [yearLevel, setYearLevel] = useState("");
+  const [sex, setSex] = useState("");
+  const [address, setAddress] = useState("");
+  const [phone, setPhone] = useState("");
+  const [personalEmail, setPersonalEmail] = useState("");
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,7 +30,7 @@ export function RegistrationForm({ onRegister }: RegistrationFormProps) {
     const corpEmail = `${studentNumber}@psu.palawan.edu.ph`.toLowerCase();
 
     // 1. Check if student number or email already exists
-    const { data: existing, error: existingError } = await supabase
+    const { data: existing } = await supabase
       .from("students")
       .select("*")
       .or(`student_number.eq.${studentNumber},corp_email.eq.${corpEmail}`);
@@ -39,7 +43,7 @@ export function RegistrationForm({ onRegister }: RegistrationFormProps) {
       return;
     }
 
-    // 2. Insert new student
+    // 2. Insert new student - use correct column names
     const { data, error } = await supabase
       .from("students")
       .insert([
@@ -47,9 +51,13 @@ export function RegistrationForm({ onRegister }: RegistrationFormProps) {
           student_number: studentNumber,
           corp_email: corpEmail,
           full_name: fullName,
-          birthdate: birthday,
-          course_id: course,
+          birthdate: birthdate,
+          sex: sex || "Not specified",
+          address: address || "",
+          personal_email: personalEmail || "",
+          phone: phone || "",
           year_level: yearLevel,
+          enrollment_status: "active",
         },
       ])
       .select()
@@ -59,6 +67,7 @@ export function RegistrationForm({ onRegister }: RegistrationFormProps) {
       toast.error("Registration failed", {
         description: error.message,
       });
+      console.error("Registration error:", error);
       setLoading(false);
       return;
     }
@@ -68,17 +77,15 @@ export function RegistrationForm({ onRegister }: RegistrationFormProps) {
     });
 
     setLoading(false);
-    onRegister(data); // send student data back to App
+    onRegister(data);
   };
 
   return (
-    <form onSubmit={handleRegister} className="space-y-6">
-      <Card className="p-6 border-2 shadow-md">
-        <h3 className="text-xl font-semibold mb-4">Student Registration</h3>
-
+    <form onSubmit={handleRegister} className="space-y-4">
+      <div className="space-y-3">
         {/* Student Number */}
-        <div className="space-y-2">
-          <Label>Student Number</Label>
+        <div>
+          <Label className="text-sm">Student Number *</Label>
           <Input
             type="text"
             placeholder="202380378"
@@ -86,14 +93,14 @@ export function RegistrationForm({ onRegister }: RegistrationFormProps) {
             onChange={(e) => setStudentNumber(e.target.value)}
             required
           />
-          <p className="text-xs text-muted-foreground">
-            Your PSU email will be generated automatically.
+          <p className="text-xs text-muted-foreground mt-1">
+            Your PSU email will be auto-generated.
           </p>
         </div>
 
         {/* Full Name */}
-        <div className="space-y-2">
-          <Label>Full Name</Label>
+        <div>
+          <Label className="text-sm">Full Name *</Label>
           <Input
             type="text"
             placeholder="Juan Dela Cruz"
@@ -103,32 +110,68 @@ export function RegistrationForm({ onRegister }: RegistrationFormProps) {
           />
         </div>
 
-        {/* Birthday */}
-        <div className="space-y-2">
-          <Label>Birthday</Label>
+        {/* Birthdate */}
+        <div>
+          <Label className="text-sm">Birthdate *</Label>
           <Input
             type="date"
-            value={birthday}
-            onChange={(e) => setBirthday(e.target.value)}
+            value={birthdate}
+            onChange={(e) => setBirthdate(e.target.value)}
             required
           />
         </div>
 
-        {/* Course */}
-        <div className="space-y-2">
-          <Label>Course</Label>
+        {/* Sex */}
+        <div>
+          <Label className="text-sm">Sex</Label>
+          <select
+            value={sex}
+            onChange={(e) => setSex(e.target.value)}
+            className="w-full px-3 py-2 border rounded-md text-sm"
+          >
+            <option value="">Select sex</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        {/* Address */}
+        <div>
+          <Label className="text-sm">Address</Label>
           <Input
             type="text"
-            placeholder="BSIT / BSCS / BSHM / etc."
-            value={course}
-            onChange={(e) => setCourse(e.target.value)}
-            required
+            placeholder="123 Main Street"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+          />
+        </div>
+
+        {/* Personal Email */}
+        <div>
+          <Label className="text-sm">Personal Email</Label>
+          <Input
+            type="email"
+            placeholder="juan@email.com"
+            value={personalEmail}
+            onChange={(e) => setPersonalEmail(e.target.value)}
+          />
+        </div>
+
+        {/* Phone */}
+        <div>
+          <Label className="text-sm">Phone</Label>
+          <Input
+            type="tel"
+            placeholder="09123456789"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
           />
         </div>
 
         {/* Year Level */}
-        <div className="space-y-2">
-          <Label>Year Level</Label>
+        <div>
+          <Label className="text-sm">Year Level *</Label>
           <Input
             type="text"
             placeholder="1st Year / 2nd Year / etc."
@@ -137,16 +180,16 @@ export function RegistrationForm({ onRegister }: RegistrationFormProps) {
             required
           />
         </div>
+      </div>
 
-        <Button
-          type="submit"
-          className="w-full mt-4"
-          size="lg"
-          disabled={loading}
-        >
-          {loading ? "Registering..." : "Register"}
-        </Button>
-      </Card>
+      <Button
+        type="submit"
+        className="w-full"
+        size="lg"
+        disabled={loading}
+      >
+        {loading ? "Registering..." : "Register"}
+      </Button>
     </form>
   );
 }
