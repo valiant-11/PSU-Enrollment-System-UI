@@ -9,10 +9,11 @@ import { toast } from "sonner";
 import { RegistrationForm } from "./RegistrationForm";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "./ui/input-otp";
 import { supabase } from "../supabase";
+import { Student } from "../App";
 
 interface AuthScreenProps {
-  onLogin: (student: any) => void;
-  onRegister: (student: any) => void;
+  onLogin: (student: Student) => void;
+  onRegister: (student: Student) => void;
   students: any[];
 }
 
@@ -26,6 +27,29 @@ export function AuthScreen({ onLogin, onRegister, students }: AuthScreenProps) {
 
   const generateOTP = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
+  };
+
+  // Convert Supabase student data to Student interface
+  const mapStudentData = (dbStudent: any): Student => {
+    return {
+      id: dbStudent.id,
+      email: dbStudent.corp_email,
+      fullName: dbStudent.full_name,
+      studentNumber: dbStudent.student_number,
+      corpEmail: dbStudent.corp_email,
+      birthdate: dbStudent.birthdate || "",
+      sex: dbStudent.sex || "",
+      address: dbStudent.address || "",
+      phone: dbStudent.phone || "",
+      course: dbStudent.course || "",
+      courseId: dbStudent.course_id,
+      yearLevel: dbStudent.year_level || "",
+      lastSchool: dbStudent.last_school || "",
+      strand: dbStudent.strand || "",
+      yearGraduated: dbStudent.year_graduated || "",
+      enrollmentStatus: dbStudent.enrollment_status || "active",
+      personalEmail: dbStudent.personal_email || "",
+    };
   };
 
   // STEP 1 → Send OTP
@@ -79,11 +103,20 @@ export function AuthScreen({ onLogin, onRegister, students }: AuthScreenProps) {
       .eq("corp_email", loginEmail)
       .single();
 
+    if (!student) {
+      toast.error("Login failed", {
+        description: "Could not fetch student data.",
+      });
+      return;
+    }
+
     toast.success("Login successful!", {
       description: `Welcome, ${student.full_name}!`,
     });
 
-    onLogin(student);
+    // Convert to Student interface and pass to onLogin
+    const mappedStudent = mapStudentData(student);
+    onLogin(mappedStudent);
   };
 
   const handleBackToEmail = () => {
