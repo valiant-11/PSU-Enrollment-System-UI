@@ -8,7 +8,7 @@ import { GraduationCap, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { RegistrationForm } from "./RegistrationForm";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "./ui/input-otp";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../supabase";
 
 interface AuthPageProps {
   onLogin: (student: any) => void;
