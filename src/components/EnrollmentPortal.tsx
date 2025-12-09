@@ -7,9 +7,10 @@ import { Separator } from "./ui/separator";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { AlertTriangle, CheckCircle2, BookOpen, Clock, Users, ShoppingCart } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { Student } from "../App";
 import { allSubjects } from "../data/subjects";
+import { enrollInSubject, dropSubject, getStudentCurrentEnrollments } from "../lib/studentDb";
 
 interface Subject {
   id: string;
@@ -39,6 +40,7 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
   const [academicYear, setAcademicYear] = useState("2024-2025");
   const [collegeFilter, setCollegeFilter] = useState("All Colleges");
   const [courseFilter, setCourseFilter] = useState("All Courses");
+  const [isLoading, setIsLoading] = useState(false);
 
   const toggleSubject = (subjectId: string) => {
     setSelectedSubjects((prev) =>
@@ -63,7 +65,7 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
     return (getTotalUnits() * tuitionPerUnit) + miscFees + labFees;
   };
 
-  const handleConfirmEnrollment = () => {
+  const handleConfirmEnrollment = async () => {
     if (selectedSubjects.length === 0) {
       toast.error("No subjects selected", {
         description: "Please select at least one subject to enroll.",
@@ -78,15 +80,39 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
       return;
     }
 
-    const updatedStudent = {
-      ...student,
-      enrolledSubjects: selectedSubjects,
-    };
-    onUpdateStudent(updatedStudent);
-    
-    toast.success("Enrollment confirmed!", {
-      description: `You have enrolled in ${selectedSubjects.length} subjects (${getTotalUnits()} units)`,
-    });
+    setIsLoading(true);
+
+    try {
+      // For demo: save to localStorage since we're using mock data
+      // In production, this would save to Supabase
+      const updatedStudent = {
+        ...student,
+        enrolledSubjects: selectedSubjects,
+        payments: [
+          ...(student.payments || []),
+          {
+            date: new Date().toISOString(),
+            amount: calculateTotalFee(),
+            description: `Tuition - ${selectedSemester} ${academicYear}"
+          }
+        ]
+      };
+      onUpdateStudent(updatedStudent);
+      
+      // Save to localStorage for persistence
+      localStorage.setItem("psu_current_student", JSON.stringify(updatedStudent));
+      
+      toast.success("Enrollment confirmed!", {
+        description: `You have enrolled in ${selectedSubjects.length} subjects (${getTotalUnits()} units). Estimated fee: ₱${calculateTotalFee().toLocaleString()}`,
+      });
+    } catch (error) {
+      console.error("Enrollment error:", error);
+      toast.error("Enrollment failed", {
+        description: "Could not save your enrollment. Please try again.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getTypeColor = (type: string) => {
@@ -128,8 +154,6 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
       return { met: true, missing: [] };
     }
 
-    // For demo: assume 1st year students pass all 1st semester subjects
-    // and can take 2nd semester subjects
     const passedSubjects = student.enrolledSubjects || [];
     const missingPrereqs = subject.prerequisites.filter((prereqId: string) => {
       return !passedSubjects.includes(prereqId);
@@ -159,11 +183,11 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
   };
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-6 lg:p-8 bg-background">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div>
-          <h1>Enrollment</h1>
+          <h1 className="text-3xl font-bold">Enrollment</h1>
           <p className="text-muted-foreground">Select subjects for Academic Year {academicYear}</p>
         </div>
 
@@ -172,7 +196,7 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
           <Alert className="border-green-200 bg-green-50">
             <CheckCircle2 className="h-4 w-4 text-green-600" />
             <AlertDescription className="text-green-800">
-              You are currently enrolled in {student.enrolledSubjects?.length || 0} subjects for {selectedSemester} {academicYear}. 
+              ✓ You are currently enrolled in {student.enrolledSubjects?.length || 0} subjects for {selectedSemester} {academicYear}. 
               You can modify your enrollment below.
             </AlertDescription>
           </Alert>
@@ -182,7 +206,7 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
         <Card className="p-6 shadow-md">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm">Academic Year</label>
+              <label className="text-sm font-medium">Academic Year</label>
               <Select value={academicYear} onValueChange={setAcademicYear}>
                 <SelectTrigger>
                   <SelectValue />
@@ -195,7 +219,7 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm">Semester</label>
+              <label className="text-sm font-medium">Semester</label>
               <Select value={selectedSemester} onValueChange={setSelectedSemester}>
                 <SelectTrigger>
                   <SelectValue />
@@ -216,13 +240,13 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
             <Card className="p-6 shadow-md">
               <div className="flex items-center gap-2 mb-4">
                 <BookOpen className="h-5 w-5 text-primary" />
-                <h3>Available Subjects</h3>
+                <h3 className="font-semibold text-lg">Available Subjects</h3>
               </div>
 
               {/* Cross-Enrollment Filters */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 p-3 bg-secondary/30 rounded-lg">
                 <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Filter by College</label>
+                  <label className="text-xs text-muted-foreground font-medium">Filter by College</label>
                   <Select value={collegeFilter} onValueChange={handleCollegeChange}>
                     <SelectTrigger className="h-9">
                       <SelectValue />
@@ -235,7 +259,7 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Filter by Course</label>
+                  <label className="text-xs text-muted-foreground font-medium">Filter by Course</label>
                   <Select value={courseFilter} onValueChange={setCourseFilter}>
                     <SelectTrigger className="h-9">
                       <SelectValue />
@@ -250,87 +274,94 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
               </div>
               
               <div className="space-y-3">
-                {filteredSubjects.map((subject) => {
-                  const isSelected = selectedSubjects.includes(subject.id);
-                  const availableSlots = subject.maxSlots - subject.slots;
-                  const isFull = availableSlots <= 0;
-                  const crossEnroll = isCrossEnrolled(subject);
+                {filteredSubjects.length === 0 ? (
+                  <div className="text-center py-8">
+                    <BookOpen className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
+                    <p className="text-sm text-muted-foreground">No subjects available</p>
+                  </div>
+                ) : (
+                  filteredSubjects.map((subject) => {
+                    const isSelected = selectedSubjects.includes(subject.id);
+                    const availableSlots = subject.maxSlots - subject.slots;
+                    const isFull = availableSlots <= 0;
+                    const crossEnroll = isCrossEnrolled(subject);
 
-                  return (
-                    <div
-                      key={subject.id}
-                      className={`border-2 rounded-xl p-4 transition-all ${
-                        isSelected
-                          ? "border-primary bg-primary/5 shadow-sm"
-                          : "border-border bg-card hover:border-primary/30 hover:shadow-sm"
-                      } ${isFull ? "opacity-50" : ""}`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <Checkbox
-                          id={subject.id}
-                          checked={isSelected}
-                          onCheckedChange={() => !isFull && toggleSubject(subject.id)}
-                          disabled={isFull}
-                          className="mt-1"
-                        />
-                        <div className="flex-1">
-                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
-                            <div>
-                              <label htmlFor={subject.id} className="cursor-pointer">
-                                <span className="text-primary">{subject.code}</span> - {subject.description}
-                              </label>
-                              {crossEnroll && (
-                                <Badge variant="outline" className="ml-2 text-xs bg-amber-50 text-amber-700 border-amber-300">
-                                  Cross-Enrollment
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline">{subject.units} units</Badge>
-                              <Badge className={getTypeColor(subject.type)}>{subject.type}</Badge>
-                            </div>
-                          </div>
-
-                          <div className="space-y-2 text-sm text-muted-foreground">
-                            {crossEnroll && (
-                              <div className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded">
-                                {subject.college}
+                    return (
+                      <div
+                        key={subject.id}
+                        className={`border-2 rounded-xl p-4 transition-all ${
+                          isSelected
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border bg-card hover:border-primary/30 hover:shadow-sm"
+                        } ${isFull ? "opacity-50" : ""}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            id={subject.id}
+                            checked={isSelected}
+                            onCheckedChange={() => !isFull && toggleSubject(subject.id)}
+                            disabled={isFull}
+                            className="mt-1"
+                          />
+                          <div className="flex-1">
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+                              <div>
+                                <label htmlFor={subject.id} className="cursor-pointer">
+                                  <span className="text-primary font-semibold">{subject.code}</span> - {subject.description}
+                                </label>
+                                {crossEnroll && (
+                                  <Badge variant="outline" className="ml-2 text-xs bg-amber-50 text-amber-700 border-amber-300">
+                                    Cross-Enrollment
+                                  </Badge>
+                                )}
                               </div>
-                            )}
-                            <div className="flex items-center gap-2">
-                              <Clock className="h-3 w-3" />
-                              <span>{subject.schedule}</span>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline">{subject.units} units</Badge>
+                                <Badge className={getTypeColor(subject.type)}>{subject.type}</Badge>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Users className="h-3 w-3" />
-                              <span>{subject.instructor}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div 
-                                className={`h-2 w-2 rounded-full ${
+
+                            <div className="space-y-2 text-sm text-muted-foreground">
+                              {crossEnroll && (
+                                <div className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded">
+                                  {subject.college}
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2">
+                                <Clock className="h-3 w-3" />
+                                <span>{subject.schedule}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Users className="h-3 w-3" />
+                                <span>{subject.instructor}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div 
+                                  className={`h-2 w-2 rounded-full ${
+                                    availableSlots > 10 
+                                      ? "bg-green-500" 
+                                      : availableSlots > 5 
+                                      ? "bg-yellow-500" 
+                                      : "bg-red-500"
+                                  }`}
+                                />
+                                <span className={{
                                   availableSlots > 10 
-                                    ? "bg-green-500" 
+                                    ? "text-green-600" 
                                     : availableSlots > 5 
-                                    ? "bg-yellow-500" 
-                                    : "bg-red-500"
-                                }`}
-                              />
-                              <span className={
-                                availableSlots > 10 
-                                  ? "text-green-600" 
-                                  : availableSlots > 5 
-                                  ? "text-yellow-600" 
-                                  : "text-red-600"
-                              }>
-                                {isFull ? "Class Full" : `${availableSlots} slots available`}
-                              </span>
+                                    ? "text-yellow-600" 
+                                    : "text-red-600"
+                                } as React.CSSProperties}>
+                                  {isFull ? "Class Full" : `${availableSlots} slots available`}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </Card>
           </div>
@@ -340,7 +371,7 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
             <Card className="p-6 shadow-md sticky top-24">
               <div className="flex items-center gap-2 mb-4">
                 <ShoppingCart className="h-5 w-5 text-primary" />
-                <h3>Enrollment Summary</h3>
+                <h3 className="font-semibold text-lg">Enrollment Summary</h3>
               </div>
 
               {selectedSubjects.length === 0 ? (
@@ -356,7 +387,7 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
                     {getSelectedSubjectDetails().map((subject) => (
                       <div key={subject.id} className="pb-3 border-b border-border last:border-0">
                         <div className="flex justify-between items-start mb-1">
-                          <p className="text-sm">{subject.code}</p>
+                          <p className="text-sm font-medium">{subject.code}</p>
                           <Badge variant="outline" className="text-xs">{subject.units} units</Badge>
                         </div>
                         <p className="text-xs text-muted-foreground">{subject.description}</p>
@@ -369,15 +400,15 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
                   <div className="space-y-3 mb-4">
                     <div className="flex justify-between">
                       <p className="text-sm text-muted-foreground">Total Subjects</p>
-                      <p className="text-sm">{selectedSubjects.length}</p>
+                      <p className="text-sm font-medium">{selectedSubjects.length}</p>
                     </div>
                     <div className="flex justify-between">
                       <p className="text-sm text-muted-foreground">Total Units</p>
-                      <p className="text-sm">{getTotalUnits()}</p>
+                      <p className="text-sm font-medium">{getTotalUnits()}</p>
                     </div>
                     <div className="flex justify-between">
-                      <p>Estimated Fee</p>
-                      <p className="text-primary">₱{calculateTotalFee().toLocaleString()}</p>
+                      <p className="font-medium">Estimated Fee</p>
+                      <p className="text-primary font-semibold">₱{calculateTotalFee().toLocaleString()}</p>
                     </div>
                   </div>
 
@@ -402,9 +433,9 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
                   <Button
                     className="w-full"
                     onClick={handleConfirmEnrollment}
-                    disabled={getTotalUnits() > 21 || getTotalUnits() === 0}
+                    disabled={getTotalUnits() > 21 || getTotalUnits() === 0 || isLoading}
                   >
-                    Confirm Enrollment
+                    {isLoading ? "Saving..." : "Confirm Enrollment"}
                   </Button>
 
                   <Button
@@ -419,8 +450,8 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
             </Card>
 
             <Card className="p-4 shadow-md bg-secondary/30">
-              <p className="text-xs text-muted-foreground mb-2">
-                <strong>Important:</strong>
+              <p className="text-xs text-muted-foreground mb-2 font-semibold">
+                ℹ️ Important:
               </p>
               <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
                 <li>Minimum: 12 units (full-time)</li>
