@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -9,8 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { AlertTriangle, CheckCircle2, BookOpen, Clock, Users, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { Student } from "../App";
-import { allSubjects } from "../data/subjects";
-import { enrollInSubject, dropSubject, getStudentCurrentEnrollments } from "../lib/studentDb";
+import { supabase } from "../lib/supabaseClient";
 
 interface Subject {
   id: string;
@@ -35,12 +34,62 @@ interface EnrollmentPortalProps {
 }
 
 export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalProps) {
+  const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>(student.enrolledSubjects || []);
   const [selectedSemester, setSelectedSemester] = useState("1st Semester");
   const [academicYear, setAcademicYear] = useState("2024-2025");
   const [collegeFilter, setCollegeFilter] = useState("All Colleges");
   const [courseFilter, setCourseFilter] = useState("All Courses");
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingSubjects, setIsLoadingSubjects] = useState(true);
+
+  // Load subjects from Supabase on component mount
+  useEffect(() => {
+    loadSubjects();
+  }, []);
+
+  const loadSubjects = async () => {
+    setIsLoadingSubjects(true);
+    try {
+      const { data, error } = await supabase
+        .from('subjects')
+        .select('*')
+        .order('code', { ascending: true });
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+      
+      // Map database format to component format
+      const mappedSubjects: Subject[] = (data || []).map(s => ({
+        id: s.id,
+        code: s.code,
+        description: s.description,
+        units: s.units,
+        schedule: s.schedule,
+        instructor: s.instructor,
+        slots: s.slots,
+        maxSlots: s.max_slots,
+        type: s.type as "GE" | "Core" | "Major",
+        college: s.college,
+        course: s.course,
+        yearLevel: s.year_level,
+        semester: s.semester as "1st Semester" | "2nd Semester" | "Summer",
+        prerequisites: s.prerequisites || []
+      }));
+      
+      setAllSubjects(mappedSubjects);
+      console.log('Loaded subjects:', mappedSubjects.length);
+    } catch (error) {
+      console.error('Error loading subjects:', error);
+      toast.error("Failed to load subjects", {
+        description: "Could not load subjects from database. Please refresh the page."
+      });
+    } finally {
+      setIsLoadingSubjects(false);
+    }
+  };
 
   const toggleSubject = (subjectId: string) => {
     setSelectedSubjects((prev) =>
@@ -83,8 +132,6 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
     setIsLoading(true);
 
     try {
-      // For demo: save to localStorage since we're using mock data
-      // In production, this would save to Supabase
       const updatedStudent = {
         ...student,
         enrolledSubjects: selectedSubjects,
@@ -94,13 +141,11 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
             date: new Date().toISOString(),
             amount: calculateTotalFee(),
             description: `Tuition - ${selectedSemester} ${academicYear}`
-
           }
         ]
       };
       onUpdateStudent(updatedStudent);
       
-      // Save to localStorage for persistence
       localStorage.setItem("psu_current_student", JSON.stringify(updatedStudent));
       
       toast.success("Enrollment confirmed!", {
@@ -132,10 +177,8 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
   const isEnrolled = selectedSubjects.length > 0 && 
                      JSON.stringify(selectedSubjects.sort()) === JSON.stringify((student.enrolledSubjects || []).sort());
 
-  // Get all unique colleges
   const allColleges = ["All Colleges", ...Array.from(new Set(allSubjects.map(s => s.college)))];
   
-  // Get available courses based on selected college
   const getAvailableCourses = () => {
     if (collegeFilter === "All Colleges") {
       return ["All Courses", ...Array.from(new Set(allSubjects.map(s => s.course)))];
@@ -143,13 +186,11 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
     return ["All Courses", ...Array.from(new Set(allSubjects.filter(s => s.college === collegeFilter).map(s => s.course)))];
   };
 
-  // Reset course filter when college changes
   const handleCollegeChange = (value: string) => {
     setCollegeFilter(value);
     setCourseFilter("All Courses");
   };
 
-  // Check if a subject has prerequisite requirements met
   const checkPrerequisites = (subject: any): { met: boolean; missing: string[] } => {
     if (!subject.prerequisites || subject.prerequisites.length === 0) {
       return { met: true, missing: [] };
@@ -169,7 +210,6 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
     };
   };
 
-  // Filter subjects based on college and course, and exclude already enrolled subjects
   const filteredSubjects = allSubjects.filter(subject => {
     const matchesCollege = collegeFilter === "All Colleges" || subject.college === collegeFilter;
     const matchesCourse = courseFilter === "All Courses" || subject.course === courseFilter;
@@ -186,13 +226,11 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
   return (
     <div className="p-6 lg:p-8 bg-background">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
         <div>
           <h1 className="text-3xl font-bold">Enrollment</h1>
           <p className="text-muted-foreground">Select subjects for Academic Year {academicYear}</p>
         </div>
 
-        {/* Enrollment Status */}
         {isEnrolled && (
           <Alert className="border-green-200 bg-green-50">
             <CheckCircle2 className="h-4 w-4 text-green-600" />
@@ -203,7 +241,6 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
           </Alert>
         )}
 
-        {/* Filters */}
         <Card className="p-6 shadow-md">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -236,7 +273,6 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
         </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Available Subjects */}
           <div className="lg:col-span-2 space-y-4">
             <Card className="p-6 shadow-md">
               <div className="flex items-center gap-2 mb-4">
@@ -244,7 +280,6 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
                 <h3 className="font-semibold text-lg">Available Subjects</h3>
               </div>
 
-              {/* Cross-Enrollment Filters */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 p-3 bg-secondary/30 rounded-lg">
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground font-medium">Filter by College</label>
@@ -275,10 +310,16 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
               </div>
               
               <div className="space-y-3">
-                {filteredSubjects.length === 0 ? (
+                {isLoadingSubjects ? (
+                  <div className="text-center py-8">
+                    <BookOpen className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50 animate-pulse" />
+                    <p className="text-sm text-muted-foreground">Loading subjects...</p>
+                  </div>
+                ) : filteredSubjects.length === 0 ? (
                   <div className="text-center py-8">
                     <BookOpen className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
                     <p className="text-sm text-muted-foreground">No subjects available</p>
+                    <p className="text-xs text-muted-foreground mt-2">Try adjusting your filters or check back later</p>
                   </div>
                 ) : (
                   filteredSubjects.map((subject) => {
@@ -353,7 +394,6 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
                                   ? "text-yellow-600" 
                                   : "text-red-600"
                                   }>
-
                                   {isFull ? "Class Full" : `${availableSlots} slots available`}
                                 </span>
                               </div>
@@ -368,7 +408,6 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
             </Card>
           </div>
 
-          {/* Enrollment Summary */}
           <div className="space-y-4">
             <Card className="p-6 shadow-md sticky top-24">
               <div className="flex items-center gap-2 mb-4">
