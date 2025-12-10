@@ -93,7 +93,8 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
           {
             date: new Date().toISOString(),
             amount: calculateTotalFee(),
-            description: `Tuition - ${selectedSemester} ${academicYear}"
+            description: `Tuition - ${selectedSemester} ${academicYear}`
+
           }
         ]
       };
@@ -345,13 +346,14 @@ export function EnrollmentPortal({ student, onUpdateStudent }: EnrollmentPortalP
                                       : "bg-red-500"
                                   }`}
                                 />
-                                <span className={{
+                                <span className={
                                   availableSlots > 10 
-                                    ? "text-green-600" 
-                                    : availableSlots > 5 
-                                    ? "text-yellow-600" 
-                                    : "text-red-600"
-                                } as React.CSSProperties}>
+                                  ? "text-green-600" 
+                                  : availableSlots > 5 
+                                  ? "text-yellow-600" 
+                                  : "text-red-600"
+                                  }>
+
                                   {isFull ? "Class Full" : `${availableSlots} slots available`}
                                 </span>
                               </div>
